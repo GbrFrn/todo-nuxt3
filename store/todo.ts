@@ -7,7 +7,7 @@ export interface Todo {
   id: string;
   title: string;
   done: boolean;
-  createAt: Date;
+  createdAt: Date;
   updatedAt: Date;
 }
 
@@ -37,9 +37,9 @@ const getters = {
     return state.items.find((item: Todo) => item.id === id);
   },
   getOrderedTodos: (state: TodoState) =>
-    state.items.sort(
+    [...state.items].sort(
       (a: Todo, b: Todo) =>
-        a.createAt.getMilliseconds() - b.createAt.getMilliseconds()
+        a.createdAt.getTime() - b.createdAt.getTime()
     ),
 };
 
@@ -49,7 +49,7 @@ const actions = {
       id: uuid(),
       ...partialTodo,
       done: false,
-      createAt: new Date(),
+      createdAt: new Date(),
       updatedAt: new Date(),
     };
     this.items.push(todo);
