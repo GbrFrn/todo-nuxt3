@@ -1,42 +1,58 @@
-# Nuxt 3 Minimal Starter
+# Development Notes
 
-Look at the [nuxt 3 documentation](https://v3.nuxtjs.org) to learn more.
+Note: for local development make sure your database is running first in another terminal (see below for more info):
 
-## Setup
+        pscale connect nuxt3-todos main
 
-Make sure to install the dependencies:
+Adding a database (required).
 
-```bash
-# yarn
-yarn install
+- Sign up at https://app.planetscale.com/
+- Create a new database and copy the DATABASE_URL to .env of your prod environment
+- Promote the new database to production immediately in planetscale
 
-# npm
-npm install
+## Making Schema Changes with PlanetScale and Prisma
 
-# pnpm
-pnpm install --shamefully-hoist
-```
+- install the planetscale cli at https://planetscale.com/cli
 
-## Development Server
+- login to your planetscale account
 
-Start the development server on http://localhost:3000
+        pscale auth login
 
-```bash
-npm run dev
-```
+- Copy the env from dist env
 
-## Production
+        cp .env.dist .env
 
-Build the application for production:
+- Create a new branch from main in PlanetScale
 
-```bash
-npm run build
-```
+        pscale branch create nuxt3-todos user-todos-add
 
-Locally preview production build:
+- Run the local PlanetScale proxy on the new branch
 
-```bash
-npm run preview
-```
+        pscale connect nuxt3-todos user-todos-add
 
-Checkout the [deployment documentation](https://v3.nuxtjs.org/guide/deploy/presets) for more information.
+- Define your Prisma schema `see prisma/schema.prisma`
+- Run the push
+
+        npx prisma db push
+
+- Merge the dev branch in PlanetScale
+
+        pscale deploy-request create nuxt3-todos user-todos-add
+
+- Deploy the schema changes (review in planetscale) - <num>: the number of the deploy request generated above
+
+        pscale deploy-request deploy nuxt3-todos <num>
+
+- Delete the unused branch
+
+        pscale branch delete nuxt3-todos user-todos-add
+
+- List branches in PlanetScale
+
+        pscale branch list nuxt3-todos
+
+## Issues with DATABASE_URL ?
+
+Add the .env file and run
+
+        npx prisma generate

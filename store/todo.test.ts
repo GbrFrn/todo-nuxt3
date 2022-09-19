@@ -6,13 +6,42 @@ import {
   beforeAll,
   beforeEach,
   afterEach,
+  afterAll,
 } from "vitest";
 import { useTodoStore } from "./todo";
 
-// Set up encapsulation for Pinia env
+function getFirstId(store: ReturnType<typeof useTodoStore>) {
+  return store.items[0].id;
+}
 
 beforeAll(() => {
   setActivePinia(createPinia());
+
+  // @ts-ignore
+  global.$fetch = async () => {
+    return {
+      data: {
+        id: "1234",
+        label: "Clean Home",
+        done: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    };
+  };
+
+  // @ts-ignore
+  global.useRequestHeaders = () => "cookier";
+});
+
+afterAll(() => {
+  global.$fetch = $fetch;
+});
+
+describe("initializes", () => {
+  test("works", () => {
+    expect(true).toBe(true);
+  });
 });
 
 describe("useTodoStore", () => {
@@ -22,77 +51,107 @@ describe("useTodoStore", () => {
     store = useTodoStore();
   });
 
-  // Makes sure there are no old items for testing purposes
   afterEach(() => {
     store.$reset();
   });
 
-  // Tests store creation
-  test("creates a store", () => {
+  test("references a store", () => {
     expect(store).toBeDefined();
   });
 
-  test("initializes with empty items", () => {
-    expect(store.items).toEqual([]);
+  test("has empty todos on init", () => {
+    expect(store.items).toStrictEqual([]);
   });
 
-  // Tests Todo creation and etc
-  test("creates a todo", () => {
-    store.add({ title: "Test my code!" });
+  test("adds a todo", async () => {
+    await store.add({
+      label: "Clean Home",
+    });
 
-    expect(store.items[0]).toBeDefined();
-    expect(store.items[0].title).toBe("Test my code!");
+    expect(store.items).toStrictEqual([
+      {
+        id: expect.any(String),
+        label: "Clean Home",
+        done: false,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      },
+    ]);
   });
 
-  test("gets by id", () => {
-    store.add({ title: "Test" });
+  test("gets todo by id", async () => {
+    await store.add({
+      label: "Clean Home",
+    });
 
-    const item = store.items[0];
-    const todo = store.getById(item.id);
-
-    expect(todo).toStrictEqual(item);
+    const item = store.getTodoById("1234");
+    expect(item.label).toBe("Clean Home");
   });
 
-  test("gets ordered todos without mutating state", () => {
+  test("gets ordered items without mutating original", async () => {
     const items = [
       {
-        createdAt: new Date(2020, 9, 19),
+        createdAt: new Date(2021, 1, 22),
       },
       {
-        createdAt: new Date(2021, 3, 29),
+        createdAt: new Date(2023, 1, 22),
       },
       {
-        createdAt: new Date(2022, 9, 19),
+        createdAt: new Date(2020, 1, 22),
+      },
+      {
+        createdAt: new Date(1994, 1, 22),
       },
     ];
 
     // @ts-ignore
     store.items = items;
 
-    const orderedTodos = store.getOrderedTodos;
+    const sortedItems = store.getSortedTodos;
 
-    expect(orderedTodos[0].createdAt.getFullYear()).toBe(2020);
-    expect(orderedTodos[1].createdAt.getFullYear()).toBe(2021);
-    expect(orderedTodos[2].createdAt.getFullYear()).toBe(2022);
-    expect(store.items[0].createdAt.getFullYear()).toBe(2020);
+    expect(sortedItems[0].createdAt.getFullYear()).toBe(1994);
+    expect(sortedItems[1].createdAt.getFullYear()).toBe(2020);
+    expect(sortedItems[2].createdAt.getFullYear()).toBe(2021);
+    expect(sortedItems[3].createdAt.getFullYear()).toBe(2023);
+    expect(store.items[0].createdAt.getFullYear()).toBe(2021);
   });
-  
-  test("removes a todo", () => {
-    store.add({ title: "test" });
 
-    const todo = store.items[0];
-    store.remove(todo.id);
-
+  test("deletes a todo", async () => {
+    await store.add({ label: "Delete Me" });
+    const id = getFirstId(store);
+    store.remove(id);
     expect(store.items).toStrictEqual([]);
   });
 
-  test('updates a todo' , () => {
-    store.add({ title: 'test' })
+  test("updates a todo label", async () => {
+    await store.add({ label: "Edit Me" });
+    const id = getFirstId(store);
+    await store.update(id, { label: "Edited" });
+    expect(store.getTodoById(id).label).toBe("Edited");
+  });
 
-    const todo = store.items[0]
-    store.update(todo.id, { done: true })
-    
-    const updated = store.items[0];
-    expect(updated.done).toBe(true)
-  })
+  test("updates a todo done", async () => {
+    await store.add({ label: "Edit Me" });
+    const id = getFirstId(store);
+    await store.update(id, { done: true });
+    expect(store.getTodoById(id).done).toBe(true);
+  });
+
+  test("fetches todos", async () => {
+    // @ts-ignore
+    global.$fetch = () => ({
+      data: [
+        {
+          id: "1234",
+          label: "Clean Home",
+          done: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    await store.fetchTodos();
+    expect(store.items.length).toBeGreaterThan(0);
+  });
 });

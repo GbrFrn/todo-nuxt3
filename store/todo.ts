@@ -1,73 +1,91 @@
 import { defineStore } from "pinia";
-import { v4 as uuid } from "uuid";
-
-//Typescript interfaces and types
+import { ApiResponse } from "~~/src/helpers";
 
 export interface Todo {
   id: string;
-  title: string;
+  label: string;
   done: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface TodoState {
-  items: Todo[] | undefined[];
-}
+export type Todos = Todo[] | undefined[];
 
 export interface TodoAdd {
-  title: string;
+  label: string;
 }
 
 export interface TodoUpdate {
-  title?: string;
+  label?: string;
   done?: boolean;
 }
 
-//States
-
-function state(): TodoState {
-  return {
-    items: [],
-  };
+interface TodoState {
+  items: Todos;
 }
 
-const getters = {
-  getById: (state: TodoState) => (id: string) => {
-    return state.items.find((item: Todo) => item.id === id);
-  },
-  getOrderedTodos: (state: TodoState) =>
-    [...state.items].sort(
-      (a: Todo, b: Todo) => a.createdAt.getTime() - b.createdAt.getTime()
-    ),
-};
+const state = (): TodoState => ({
+  items: [],
+});
 
-const actions = {
-  add(partialTodo: TodoAdd) {
-    const todo: Todo = {
-      id: uuid(),
-      ...partialTodo,
-      done: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.items.push(todo);
+const getters = {
+  getTodoById: (state: TodoState) => {
+    return (id: string) =>
+      state.items.find((item) => !!item && (item as Todo).id === id);
   },
-  remove(id: string) {
-    this.items = this.items.filter((todo: Todo) => todo.id !== id);
-  },
-  update(id: string, update: TodoUpdate) {
-    const index = this.items.findIndex((item) => item.id === id);
-    this.items[index] = {
-      ...this.items[index],
-      ...update,
-      updatedAt: new Date(),
-    };
+  getSortedTodos: (state: TodoState) => {
+    return [...state.items].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
   },
 };
 
 export const useTodoStore = defineStore("todoStore", {
   state,
   getters,
-  actions,
+  actions: {
+    async add(todo: TodoAdd) {
+      const response = (await $fetch("/api/todo/todos", {
+        method: "POST",
+        body: todo,
+      })) as ApiResponse;
+
+      this.items.push(response.data);
+    },
+    async remove(id: string) {
+      this.items = this.items.filter((item) => item.id !== id);
+
+      await $fetch("/api/todo/todos", {
+        method: "DELETE",
+        body: {
+          id,
+        },
+      });
+    },
+    async update(id: string, update: TodoUpdate) {
+      const items = this.items as Todos;
+      const index = items.findIndex(
+        (item) => !!item && (item as Todo).id === id
+      );
+
+      items[index] = { ...items[index], ...update, updatedAt: new Date() };
+      await $fetch("/api/todo/todos", {
+        method: "PUT",
+        body: {
+          id,
+          ...update,
+        },
+      });
+    },
+    async fetchTodos() {
+      const response = (await $fetch("/api/todo/todos", {
+        headers: useRequestHeaders(["cookie"]),
+      })) as ApiResponse;
+
+      if (response.data !== null) {
+        this.items = response.data;
+      }
+    },
+  },
 });
